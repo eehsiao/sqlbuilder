@@ -8,13 +8,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/eehsiao/go-models/lib"
 )
 
 var (
-	errLog     *log.Logger
-	isErrorLog bool
+	errLog     = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
+	isErrorLog = false
 )
 
 type SQLBuilder struct {
@@ -47,9 +45,6 @@ type SQLBuilder struct {
 }
 
 func NewSQLBuilder() (b *SQLBuilder) {
-	errLog = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
-	isErrorLog = false
-
 	b = &SQLBuilder{
 		driver_type: "mysql",
 	}
@@ -245,7 +240,11 @@ func (sb *SQLBuilder) BuildSelectSQL() *SQLBuilder {
 		sb.PanicOrErrorLog("Without selects or from table is not set")
 	}
 
-	sql := "SELECT" + lib.Iif(sb.IsDistinct(), " DISTINCT", "").(string)
+	sql := "SELECT"
+
+	if sb.IsDistinct() {
+		sql += " DISTINCT"
+	}
 
 	if sb.IsHasTop() {
 		sql += " TOP " + sb.top
