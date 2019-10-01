@@ -15,6 +15,10 @@ var (
 	isErrorLog = false
 )
 
+type Set struct {
+	k string
+	v interface{}
+}
 type SQLBuilder struct {
 	driverType string
 
@@ -41,10 +45,7 @@ type SQLBuilder struct {
 	values []interface{}
 
 	// for update
-	sets []struct {
-		k string
-		v interface{}
-	}
+	sets []Set
 }
 
 func NewSQLBuilder() (b *SQLBuilder) {
@@ -117,10 +118,7 @@ func (sb *SQLBuilder) ClearBuilder() {
 	sb.into = ""
 	sb.fields = make([]string, 0)
 	sb.values = make([]interface{}, 0)
-	sb.sets = make([]struct {
-		k string
-		v interface{}
-	}, 0)
+	sb.sets = make([]Set, 0)
 }
 
 func (sb *SQLBuilder) SetDbName(s string) {
@@ -672,10 +670,7 @@ func (sb *SQLBuilder) Having(s string, o string, v interface{}) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) Set(s []struct {
-	k string
-	v interface{}
-}) *SQLBuilder {
+func (sb *SQLBuilder) Set(s []Set) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support set fileds : values")
 	}

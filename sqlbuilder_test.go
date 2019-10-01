@@ -15,14 +15,7 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 		{
 			name: "case 1 : UPDATE",
 			fn: func(sb *SQLBuilder) {
-				sb.Set([]struct {
-					k string
-					v interface{}
-				}{
-					{"foo", 1},
-					{"bar", "\"2\""},
-					{"te\"st", true},
-				}).From("user").Where("abc", "=", 1).WhereOr("def", "=", true).WhereAnd("ghi", "like", "%ghi%").BuildUpdateSQL()
+				sb.Set([]Set{{"foo", 1}, {"bar", "\"2\""}, {"te\"st", true}}).From("user").Where("abc", "=", 1).WhereOr("def", "=", true).WhereAnd("ghi", "like", "%ghi%").BuildUpdateSQL()
 			},
 			wantSql: "UPDATE user SET foo=1,bar='\\\"2\\\"',te\\\"st=true WHERE abc = 1 OR def = true AND ghi like '%ghi%'",
 		},
