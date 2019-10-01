@@ -38,7 +38,7 @@ type SQLBuilder struct {
 	// for insert
 	into   string
 	fields []string
-	values [][]interface{}
+	values []interface{}
 
 	// for update
 	sets []struct {
@@ -116,7 +116,7 @@ func (sb *SQLBuilder) ClearBuilder() {
 	sb.top = ""
 	sb.into = ""
 	sb.fields = make([]string, 0)
-	sb.values = make([][]interface{}, 0)
+	sb.values = make([]interface{}, 0)
 	sb.sets = make([]struct {
 		k string
 		v interface{}
@@ -301,7 +301,7 @@ func (sb *SQLBuilder) BuildSelectSQL() *SQLBuilder {
 	}
 
 	if sb.IsHasHavings() {
-		sql += " HAVING BY " + sb.havings
+		sql += " HAVING " + sb.havings
 	}
 
 	if sb.IsHasLimit() {
@@ -356,22 +356,18 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 		sql += sb.tbName
 	}
 
-	sql += "(" + strings.Join(sb.fields, ",") + ") VALUES "
+	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
 
-	vals := ""
-	for _, l := range sb.values {
-		ls := "("
-		for _, v := range l {
-			switch v.(type) {
-			case string:
-				vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
-			default:
-				vals += fmt.Sprintf("%v,", v)
-			}
+	vals := "("
+	for _, v := range sb.values {
+		switch v.(type) {
+		case string:
+			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
+		default:
+			vals += fmt.Sprintf("%v,", v)
 		}
-		ls = strings.Trim(ls, ",") + "),"
 	}
-	sql += strings.Trim(vals, ",")
+	sql += strings.Trim(vals, ",") + ")"
 	sb.buildedStr = sql
 
 	return sb
@@ -471,117 +467,155 @@ func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) Where(s string) *SQLBuilder {
-	if s == "" {
+// Where : just equal WhereAnd
+func (sb *SQLBuilder) Where(s string, o string, v interface{}) *SQLBuilder {
+	return sb.WhereAnd(s, o, v)
+}
+
+func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
+	if len(s) == 0 && s != "" && o != "" && v != nil && v.(string) != "" {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
-	if !sb.IsHasWheres() {
-		sb.wheres = append(sb.wheres, EscapeStr(s))
-	} else {
-		s = "AND " + s
-		sb.wheres = append(sb.wheres, EscapeStr(s))
+
+	c := ""
+	if sb.IsHasWheres() {
+		c = "AND "
+	}
+	switch v.(type) {
+	case string:
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+
+	default:
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s), EscapeStr(o), v))
 	}
 
 	return sb
 }
 
-func (sb *SQLBuilder) WhereAnd(s ...string) *SQLBuilder {
+func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 
-	for _, v := range s {
-		if !sb.IsHasWheres() {
-			sb.wheres = append(sb.wheres, EscapeStr(v))
-		} else {
-			v = "AND " + v
-			sb.wheres = append(sb.wheres, EscapeStr(v))
-		}
+	c := ""
+	if sb.IsHasWheres() {
+		c = "OR "
+	}
+	switch v.(type) {
+	case string:
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+
+	default:
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s), EscapeStr(o), v))
 	}
 
 	return sb
 }
 
-func (sb *SQLBuilder) WhereOr(s ...string) *SQLBuilder {
-	if len(s) == 0 {
-		sb.PanicOrErrorLog("must be support conditions")
-	}
-
-	for _, v := range s {
-		if !sb.IsHasWheres() {
-			sb.wheres = append(sb.wheres, EscapeStr(v))
-		} else {
-			v = "OR " + v
-			sb.wheres = append(sb.wheres, EscapeStr(v))
-		}
-	}
-
-	return sb
-}
-
-func (sb *SQLBuilder) Join(s string, c string) *SQLBuilder {
-	if s == "" {
+func (sb *SQLBuilder) join(p string, j string) *SQLBuilder {
+	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	if c != "" {
-		s += " ON " + c
-	}
-	sb.joins = append(sb.joins, "JOIN "+EscapeStr(s))
+	sb.joins = append(sb.joins, p+"JOIN "+EscapeStr(j))
 
 	return sb
 }
 
-func (sb *SQLBuilder) InnerJoin(s string, c string) *SQLBuilder {
-	if s == "" {
+func (sb *SQLBuilder) joinOn(p string, j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	if c != "" {
-		s += " ON " + c
+	switch v.(type) {
+	case string:
+		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, j, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+
+	default:
+		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s %v", p, j, EscapeStr(s), EscapeStr(o), v))
 	}
-	sb.joins = append(sb.joins, "INNER JOIN "+EscapeStr(s))
 
 	return sb
 }
 
-func (sb *SQLBuilder) LeftJoin(s string, c string) *SQLBuilder {
-	if s == "" {
+func (sb *SQLBuilder) Join(j string) *SQLBuilder {
+	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	if c != "" {
-		s += " ON " + c
-	}
-	sb.joins = append(sb.joins, "LEFT JOIN "+EscapeStr(s))
-
-	return sb
+	return sb.join("", j)
 }
 
-func (sb *SQLBuilder) RightJoin(s string, c string) *SQLBuilder {
-	if s == "" {
+func (sb *SQLBuilder) JoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	if c != "" {
-		s += " ON " + c
-	}
-	sb.joins = append(sb.joins, "RIGHT JOIN "+EscapeStr(s))
-
-	return sb
+	return sb.joinOn("", j, s, o, v)
 }
 
-func (sb *SQLBuilder) FullJoin(s string, c string) *SQLBuilder {
-	if s == "" {
+func (sb *SQLBuilder) InnerJoin(j string) *SQLBuilder {
+	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	if c != "" {
-		s += " ON " + c
-	}
-	sb.joins = append(sb.joins, "FULL OUTER JOIN "+EscapeStr(s))
+	return sb.join("INNER ", j)
+}
 
-	return sb
+func (sb *SQLBuilder) InnerJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("INNER ", j, s, o, v)
+}
+
+func (sb *SQLBuilder) LeftJoin(j string) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.join("LEFT ", j)
+}
+
+func (sb *SQLBuilder) LeftJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("LEFT ", j, s, o, v)
+}
+
+func (sb *SQLBuilder) RightJoin(j string) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.join("RIGHT ", j)
+}
+
+func (sb *SQLBuilder) RightJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("RIGHT ", j, s, o, v)
+}
+
+func (sb *SQLBuilder) FullJoin(j string) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.join("FULL ", j)
+}
+
+func (sb *SQLBuilder) FullJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("FULL ", j, s, o, v)
 }
 
 func (sb *SQLBuilder) GroupBy(s ...string) *SQLBuilder {
@@ -620,12 +654,20 @@ func (sb *SQLBuilder) OrderByDesc(s ...string) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) Having(s string) *SQLBuilder {
+func (sb *SQLBuilder) Having(s string, o string, v interface{}) *SQLBuilder {
 	if s == "" || !sb.IsHasGroups() {
 		sb.PanicOrErrorLog("must be support having condition or set group by first")
 	}
 
 	sb.havings = EscapeStr(s)
+
+	switch v.(type) {
+	case string:
+		sb.havings = fmt.Sprintf("%s %s '%s'", EscapeStr(s), EscapeStr(o), EscapeStr(v.(string)))
+
+	default:
+		sb.havings = fmt.Sprintf("%s %s %v", EscapeStr(s), EscapeStr(o), v)
+	}
 
 	return sb
 }
@@ -670,18 +712,19 @@ func (sb *SQLBuilder) Fields(s ...string) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) Values(s ...[]interface{}) *SQLBuilder {
+func (sb *SQLBuilder) Values(s ...interface{}) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support fileds")
 	}
 
 	fieldCnt := sb.GetFieldsCount()
-	for _, v := range s {
-		if len(v) == fieldCnt {
+	if len(s) == fieldCnt {
+		for _, v := range s {
 			sb.values = append(sb.values, v)
-		} else {
-			sb.PanicOrErrorLog("values count not equal fileds count")
 		}
+
+	} else {
+		sb.PanicOrErrorLog("values count not equal fileds count")
 	}
 
 	return sb
