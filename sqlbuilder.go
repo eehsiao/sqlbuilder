@@ -16,8 +16,8 @@ var (
 )
 
 type Set struct {
-	k string
-	v interface{}
+	K string
+	V interface{}
 }
 type SQLBuilder struct {
 	driverType string
@@ -325,11 +325,11 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 
 	setStr := "SET "
 	for _, set := range sb.sets {
-		switch set.v.(type) {
+		switch set.V.(type) {
 		case string:
-			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.k), EscapeStr(set.v.(string)))
+			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K), EscapeStr(set.V.(string)))
 		default:
-			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.k), set.v)
+			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K), set.V)
 		}
 	}
 	sql += strings.Trim(setStr, ",")
