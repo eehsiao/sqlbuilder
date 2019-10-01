@@ -57,18 +57,21 @@ func NewSQLBuilder() (b *SQLBuilder) {
 }
 
 func EscapeStr(value string) string {
-	replace := map[string]string{
-		"\\":   "\\\\",
-		"'":    `\'`,
-		"\\0":  "\\\\0",
-		"\n":   "\\n",
-		"\r":   "\\r",
-		`"`:    `\"`,
-		"\x1a": "\\Z",
+	replace := []struct {
+		org string
+		rep string
+	}{
+		{`\\`, `\\\\`},
+		{`'`, `\'`},
+		{`\\0`, "\\\\0"},
+		{`\n`, `\\n`},
+		{`\r`, `\\r`},
+		{"\"", "\\\""},
+		{`\x1a`, `\\Z`},
 	}
 
-	for o, r := range replace {
-		value = strings.Replace(value, o, r, -1)
+	for _, r := range replace {
+		value = strings.Replace(value, r.org, r.rep, -1)
 	}
 
 	return value
