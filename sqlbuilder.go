@@ -16,7 +16,7 @@ var (
 )
 
 type SQLBuilder struct {
-	driver_type string
+	driverType string
 
 	// default database and table
 	dbName     string
@@ -41,16 +41,37 @@ type SQLBuilder struct {
 	values [][]interface{}
 
 	// for update
-	sets map[string]interface{}
+	sets []struct {
+		k string
+		v interface{}
+	}
 }
 
 func NewSQLBuilder() (b *SQLBuilder) {
 	b = &SQLBuilder{
-		driver_type: "mysql",
+		driverType: "mysql",
 	}
 	b.ClearBuilder()
 
 	return
+}
+
+func EscapeStr(value string) string {
+	replace := map[string]string{
+		"\\":   "\\\\",
+		"'":    `\'`,
+		"\\0":  "\\\\0",
+		"\n":   "\\n",
+		"\r":   "\\r",
+		`"`:    `\"`,
+		"\x1a": "\\Z",
+	}
+
+	for o, r := range replace {
+		value = strings.Replace(value, o, r, -1)
+	}
+
+	return value
 }
 
 func (sb *SQLBuilder) SwitchPanicToErrorLog(b bool) {
@@ -74,7 +95,7 @@ func (sb *SQLBuilder) SetDriverType(t string) {
 	case "oracle":
 		fallthrough
 	case "postgresql":
-		sb.driver_type = t
+		sb.driverType = t
 	}
 }
 
@@ -93,7 +114,10 @@ func (sb *SQLBuilder) ClearBuilder() {
 	sb.into = ""
 	sb.fields = make([]string, 0)
 	sb.values = make([][]interface{}, 0)
-	sb.sets = make(map[string]interface{}, 0)
+	sb.sets = make([]struct {
+		k string
+		v interface{}
+	}, 0)
 }
 
 func (sb *SQLBuilder) SetDbName(s string) {
@@ -121,19 +145,19 @@ func (sb *SQLBuilder) GetTbName() string {
 }
 
 func (sb *SQLBuilder) IsMysql() bool {
-	return sb.driver_type == "mysql"
+	return sb.driverType == "mysql"
 }
 
 func (sb *SQLBuilder) IsMssql() bool {
-	return sb.driver_type == "mssql"
+	return sb.driverType == "mssql"
 }
 
 func (sb *SQLBuilder) IsOracle() bool {
-	return sb.driver_type == "oracle"
+	return sb.driverType == "oracle"
 }
 
 func (sb *SQLBuilder) IsPostgresql() bool {
-	return sb.driver_type == "postgresql"
+	return sb.driverType == "postgresql"
 }
 
 func (sb *SQLBuilder) IsDistinct() bool {
@@ -299,12 +323,12 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 	}
 
 	setStr := "SET "
-	for k, v := range sb.sets {
-		switch v.(type) {
+	for _, set := range sb.sets {
+		switch set.v.(type) {
 		case string:
-			setStr += fmt.Sprintf("%s='%v',", k, v)
+			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.k), EscapeStr(set.v.(string)))
 		default:
-			setStr += fmt.Sprintf("%s=%v,", k, v)
+			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.k), set.v)
 		}
 	}
 	sql += strings.Trim(setStr, ",")
@@ -337,7 +361,7 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 		for _, v := range l {
 			switch v.(type) {
 			case string:
-				vals += fmt.Sprintf("'%v',", v)
+				vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
 			default:
 				vals += fmt.Sprintf("%v,", v)
 			}
@@ -408,7 +432,7 @@ func (sb *SQLBuilder) Select(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.selects = append(sb.selects, v)
+		sb.selects = append(sb.selects, EscapeStr(v))
 	}
 
 	return sb
@@ -420,7 +444,7 @@ func (sb *SQLBuilder) From(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.froms = append(sb.froms, v)
+		sb.froms = append(sb.froms, EscapeStr(v))
 	}
 
 	return sb
@@ -439,7 +463,7 @@ func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 		sb.clearFrom()
 	}
 
-	sb.froms = append(sb.froms, s)
+	sb.froms = append(sb.froms, EscapeStr(s))
 
 	return sb
 }
@@ -449,10 +473,10 @@ func (sb *SQLBuilder) Where(s string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 	if !sb.IsHasWheres() {
-		sb.wheres = append(sb.wheres, s)
+		sb.wheres = append(sb.wheres, EscapeStr(s))
 	} else {
 		s = "AND " + s
-		sb.wheres = append(sb.wheres, s)
+		sb.wheres = append(sb.wheres, EscapeStr(s))
 	}
 
 	return sb
@@ -465,10 +489,10 @@ func (sb *SQLBuilder) WhereAnd(s ...string) *SQLBuilder {
 
 	for _, v := range s {
 		if !sb.IsHasWheres() {
-			sb.wheres = append(sb.wheres, v)
+			sb.wheres = append(sb.wheres, EscapeStr(v))
 		} else {
 			v = "AND " + v
-			sb.wheres = append(sb.wheres, v)
+			sb.wheres = append(sb.wheres, EscapeStr(v))
 		}
 	}
 
@@ -482,10 +506,10 @@ func (sb *SQLBuilder) WhereOr(s ...string) *SQLBuilder {
 
 	for _, v := range s {
 		if !sb.IsHasWheres() {
-			sb.wheres = append(sb.wheres, v)
+			sb.wheres = append(sb.wheres, EscapeStr(v))
 		} else {
 			v = "OR " + v
-			sb.wheres = append(sb.wheres, v)
+			sb.wheres = append(sb.wheres, EscapeStr(v))
 		}
 	}
 
@@ -500,7 +524,7 @@ func (sb *SQLBuilder) Join(s string, c string) *SQLBuilder {
 	if c != "" {
 		s += " ON " + c
 	}
-	sb.joins = append(sb.joins, "JOIN "+s)
+	sb.joins = append(sb.joins, "JOIN "+EscapeStr(s))
 
 	return sb
 }
@@ -513,7 +537,7 @@ func (sb *SQLBuilder) InnerJoin(s string, c string) *SQLBuilder {
 	if c != "" {
 		s += " ON " + c
 	}
-	sb.joins = append(sb.joins, "INNER JOIN "+s)
+	sb.joins = append(sb.joins, "INNER JOIN "+EscapeStr(s))
 
 	return sb
 }
@@ -526,7 +550,7 @@ func (sb *SQLBuilder) LeftJoin(s string, c string) *SQLBuilder {
 	if c != "" {
 		s += " ON " + c
 	}
-	sb.joins = append(sb.joins, "LEFT JOIN "+s)
+	sb.joins = append(sb.joins, "LEFT JOIN "+EscapeStr(s))
 
 	return sb
 }
@@ -539,7 +563,7 @@ func (sb *SQLBuilder) RightJoin(s string, c string) *SQLBuilder {
 	if c != "" {
 		s += " ON " + c
 	}
-	sb.joins = append(sb.joins, "RIGHT JOIN "+s)
+	sb.joins = append(sb.joins, "RIGHT JOIN "+EscapeStr(s))
 
 	return sb
 }
@@ -552,7 +576,7 @@ func (sb *SQLBuilder) FullJoin(s string, c string) *SQLBuilder {
 	if c != "" {
 		s += " ON " + c
 	}
-	sb.joins = append(sb.joins, "FULL OUTER JOIN "+s)
+	sb.joins = append(sb.joins, "FULL OUTER JOIN "+EscapeStr(s))
 
 	return sb
 }
@@ -563,7 +587,7 @@ func (sb *SQLBuilder) GroupBy(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.groups = append(sb.groups, v)
+		sb.groups = append(sb.groups, EscapeStr(v))
 	}
 
 	return sb
@@ -578,7 +602,7 @@ func (sb *SQLBuilder) OrderByAsc(s ...string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support order fileds")
 	}
 
-	sb.orders = append(sb.orders, strings.Join(s, ",")+" ASC")
+	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","))+" ASC")
 
 	return sb
 }
@@ -588,7 +612,7 @@ func (sb *SQLBuilder) OrderByDesc(s ...string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support order fileds")
 	}
 
-	sb.orders = append(sb.orders, strings.Join(s, ",")+" DESC")
+	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","))+" DESC")
 
 	return sb
 }
@@ -598,18 +622,21 @@ func (sb *SQLBuilder) Having(s string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support having condition or set group by first")
 	}
 
-	sb.havings = s
+	sb.havings = EscapeStr(s)
 
 	return sb
 }
 
-func (sb *SQLBuilder) Set(s map[string]interface{}) *SQLBuilder {
+func (sb *SQLBuilder) Set(s []struct {
+	k string
+	v interface{}
+}) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support set fileds : values")
 	}
 
-	for k, v := range s {
-		sb.sets[k] = v
+	for _, set := range s {
+		sb.sets = append(sb.sets, set)
 	}
 
 	return sb
@@ -620,7 +647,7 @@ func (sb *SQLBuilder) Into(s string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support table")
 	}
 
-	sb.into = s
+	sb.into = EscapeStr(s)
 
 	return sb
 }
@@ -634,7 +661,7 @@ func (sb *SQLBuilder) Fields(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.fields = append(sb.fields, v)
+		sb.fields = append(sb.fields, EscapeStr(v))
 	}
 
 	return sb
