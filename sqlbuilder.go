@@ -48,11 +48,32 @@ type SQLBuilder struct {
 	sets []Set
 }
 
-func NewSQLBuilder() (b *SQLBuilder) {
+func NewSQLBuilder(d ...string) (b *SQLBuilder) {
+	driverName := "mysql"
+	if len(d) > 0 && checkDriveType(d[0]) {
+		driverName = d[0]
+	}
 	b = &SQLBuilder{
-		driverType: "mysql",
+		driverType: driverName,
 	}
 	b.ClearBuilder()
+
+	return
+}
+
+func checkDriveType(d string) (b bool) {
+	switch d {
+	case "mysql":
+		fallthrough
+	case "mssql":
+		fallthrough
+	case "oracle":
+		fallthrough
+	case "postgresql":
+		fallthrough
+	case "SQLite":
+		b = true
+	}
 
 	return
 }
@@ -91,14 +112,7 @@ func (sb *SQLBuilder) PanicOrErrorLog(s string) {
 }
 
 func (sb *SQLBuilder) SetDriverType(t string) {
-	switch t {
-	case "mysql":
-		fallthrough
-	case "mssql":
-		fallthrough
-	case "oracle":
-		fallthrough
-	case "postgresql":
+	if checkDriveType(t) {
 		sb.driverType = t
 	}
 }
@@ -159,6 +173,10 @@ func (sb *SQLBuilder) IsOracle() bool {
 
 func (sb *SQLBuilder) IsPostgresql() bool {
 	return sb.driverType == "postgresql"
+}
+
+func (sb *SQLBuilder) IsSQLite() bool {
+	return sb.driverType == "SQLite"
 }
 
 func (sb *SQLBuilder) IsDistinct() bool {
@@ -348,6 +366,38 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 	}
 
 	sql := "INSERT INTO "
+	if sb.IsHasInto() {
+		sql += sb.into
+	} else if sb.IsHasTbName() {
+		sql += sb.tbName
+	}
+
+	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
+
+	vals := "("
+	for _, v := range sb.values {
+		switch v.(type) {
+		case string:
+			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
+		default:
+			vals += fmt.Sprintf("%v,", v)
+		}
+	}
+	sql += strings.Trim(vals, ",") + ")"
+	sb.buildedStr = sql
+
+	return sb
+}
+
+func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
+	if !sb.IsSQLite() {
+		sb.PanicOrErrorLog("limit only support SQLite")
+	}
+	if !sb.CanBuildInsert() {
+		sb.PanicOrErrorLog("Without insert tableor default TbName")
+	}
+
+	sql := "INSERT OR REPLACE INTO "
 	if sb.IsHasInto() {
 		sql += sb.into
 	} else if sb.IsHasTbName() {
