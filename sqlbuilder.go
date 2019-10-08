@@ -774,3 +774,7 @@ func (sb *SQLBuilder) Values(s ...interface{}) *SQLBuilder {
 
 	return sb
 }
+
+func (sb *SQLBuilder) Release() {
+	sb = nil
+}

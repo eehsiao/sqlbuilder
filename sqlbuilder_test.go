@@ -69,7 +69,7 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 			if gotSql := sb.BuildedSQL(); gotSql != tt.wantSql {
 				t.Errorf("SQLBuilder.BuildedSQL() = %v, want %v", gotSql, tt.wantSql)
 			}
-			sb.ClearBuilder()
+			sb.Release()
 		})
 	}
 }
