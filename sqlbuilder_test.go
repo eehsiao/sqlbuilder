@@ -64,11 +64,12 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sb := NewSQLBuilder()
+			sb := NewSQLBuilder("mysql")
 			tt.fn(sb)
 			if gotSql := sb.BuildedSQL(); gotSql != tt.wantSql {
 				t.Errorf("SQLBuilder.BuildedSQL() = %v, want %v", gotSql, tt.wantSql)
 			}
+			sb.ClearBuilder()
 		})
 	}
 }
