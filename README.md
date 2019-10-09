@@ -1,3 +1,4 @@
+[![GoDoc](https://godoc.org/github.com/eehsiao/sqlbuilder?status.svg)](https://godoc.org/github.com/eehsiao/sqlbuilder)
 # sqlbuilder
 `sqlbuilder` is a simple sql query string builder
 
