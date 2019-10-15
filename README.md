@@ -1,8 +1,9 @@
-[![GoDoc](https://godoc.org/github.com/eehsiao/sqlbuilder?status.svg)](https://godoc.org/github.com/eehsiao/sqlbuilder)
 # sqlbuilder
 `sqlbuilder` is a simple sql query string builder
 
 sqlbuilder its recursive struct call, that you can easy to build sql string
+
+[![GoDoc](https://godoc.org/github.com/eehsiao/sqlbuilder?status.svg)](https://godoc.org/github.com/eehsiao/sqlbuilder)
 
 ex: dao.Select().From().Join().Where().Limit()
 ### SqlBuilder functions
@@ -10,8 +11,8 @@ ex: dao.Select().From().Join().Where().Limit()
     * Select(f ...string)
         * f is a fileds list of strings
         * Select("filed1", "filed2", "filed3")
-        * Select(lib.Struce4QuerySlice(DaoStructType)...)
-            * the library ref : [https://github.com/eehsiao/go-models-lib](https://github.com/eehsiao/go-models-lib)
+        * Select(models.Struce4QuerySlice(DaoStructType)...)
+            * the library ref : [https://github.com/eehsiao/go-models](https://github.com/eehsiao/go-models)
     * Distinct(b bool)
         * its default in builder is set `false`
     * Top(i int)
