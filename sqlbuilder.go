@@ -224,7 +224,7 @@ func (sb *SQLBuilder) IsHasHavings() bool {
 }
 
 func (sb *SQLBuilder) IsHasLimit() bool {
-	return sb.IsMysql() && sb.limit != ""
+	return (sb.IsMysql() || sb.IsSQLite()) && sb.limit != ""
 }
 
 func (sb *SQLBuilder) IsHasTop() bool {
@@ -444,7 +444,7 @@ func (sb *SQLBuilder) Distinct(b bool) *SQLBuilder {
 }
 
 func (sb *SQLBuilder) Limit(i ...int) *SQLBuilder {
-	if !sb.IsMysql() {
+	if !(sb.IsMysql() || sb.IsSQLite()) {
 		sb.PanicOrErrorLog("limit only support mysql")
 	}
 	if len(i) == 0 {
