@@ -78,18 +78,33 @@ func checkDriveType(d string) (b bool) {
 	return
 }
 
-func EscapeStr(value string) string {
+func EscapeStr(value string, isMysql ...bool) string {
 	replace := []struct {
 		org string
 		rep string
 	}{
 		{`\\`, `\\\\`},
 		{`'`, `\'`},
+		{`"`, `\"`},
 		{`\\0`, "\\\\0"},
 		{`\n`, `\\n`},
 		{`\r`, `\\r`},
-		{"\"", "\\\""},
 		{`\x1a`, `\\Z`},
+	}
+
+	if len(isMysql) > 0 && !isMysql[0] {
+		replace = []struct {
+			org string
+			rep string
+		}{
+			{`\\`, `\\\\`},
+			{`'`, `''`},
+			{`"`, `""`},
+			{`\\0`, "\\\\0"},
+			{`\n`, `\\n`},
+			{`\r`, `\\r`},
+			{`\x1a`, `\\Z`},
+		}
 	}
 
 	for _, r := range replace {
@@ -345,9 +360,9 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 	for _, set := range sb.sets {
 		switch set.V.(type) {
 		case string:
-			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K), EscapeStr(set.V.(string)))
+			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K, sb.IsMysql()), EscapeStr(set.V.(string), sb.IsMysql()))
 		default:
-			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K), set.V)
+			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K, sb.IsMysql()), set.V)
 		}
 	}
 	sql += strings.Trim(setStr, ",")
@@ -378,7 +393,7 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 	for _, v := range sb.values {
 		switch v.(type) {
 		case string:
-			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
+			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 		default:
 			vals += fmt.Sprintf("%v,", v)
 		}
@@ -410,7 +425,7 @@ func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
 	for _, v := range sb.values {
 		switch v.(type) {
 		case string:
-			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string)))
+			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 		default:
 			vals += fmt.Sprintf("%v,", v)
 		}
@@ -479,7 +494,7 @@ func (sb *SQLBuilder) Select(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.selects = append(sb.selects, EscapeStr(v))
+		sb.selects = append(sb.selects, EscapeStr(v, sb.IsMysql()))
 	}
 
 	return sb
@@ -491,7 +506,7 @@ func (sb *SQLBuilder) From(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.froms = append(sb.froms, EscapeStr(v))
+		sb.froms = append(sb.froms, EscapeStr(v, sb.IsMysql()))
 	}
 
 	return sb
@@ -510,7 +525,7 @@ func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 		sb.clearFrom()
 	}
 
-	sb.froms = append(sb.froms, EscapeStr(s))
+	sb.froms = append(sb.froms, EscapeStr(s, sb.IsMysql()))
 
 	return sb
 }
@@ -531,10 +546,10 @@ func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 	}
 	switch v.(type) {
 	case string:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
 
 	default:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s), EscapeStr(o), v))
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
 	}
 
 	return sb
@@ -551,10 +566,10 @@ func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
 	}
 	switch v.(type) {
 	case string:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
 
 	default:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s), EscapeStr(o), v))
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
 	}
 
 	return sb
@@ -565,7 +580,7 @@ func (sb *SQLBuilder) join(p string, j string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	sb.joins = append(sb.joins, p+"JOIN "+EscapeStr(j))
+	sb.joins = append(sb.joins, p+"JOIN "+EscapeStr(j, sb.IsMysql()))
 
 	return sb
 }
@@ -577,10 +592,10 @@ func (sb *SQLBuilder) joinOn(p string, j string, s string, o string, v interface
 
 	switch v.(type) {
 	case string:
-		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, j, EscapeStr(s), EscapeStr(o), EscapeStr(v.(string))))
+		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
 
 	default:
-		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s %v", p, j, EscapeStr(s), EscapeStr(o), v))
+		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s %v", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
 	}
 
 	return sb
@@ -672,7 +687,7 @@ func (sb *SQLBuilder) GroupBy(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.groups = append(sb.groups, EscapeStr(v))
+		sb.groups = append(sb.groups, EscapeStr(v, sb.IsMysql()))
 	}
 
 	return sb
@@ -687,7 +702,7 @@ func (sb *SQLBuilder) OrderByAsc(s ...string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support order fileds")
 	}
 
-	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","))+" ASC")
+	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","), sb.IsMysql())+" ASC")
 
 	return sb
 }
@@ -697,7 +712,7 @@ func (sb *SQLBuilder) OrderByDesc(s ...string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support order fileds")
 	}
 
-	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","))+" DESC")
+	sb.orders = append(sb.orders, EscapeStr(strings.Join(s, ","), sb.IsMysql())+" DESC")
 
 	return sb
 }
@@ -707,14 +722,14 @@ func (sb *SQLBuilder) Having(s string, o string, v interface{}) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support having condition or set group by first")
 	}
 
-	sb.havings = EscapeStr(s)
+	sb.havings = EscapeStr(s, sb.IsMysql())
 
 	switch v.(type) {
 	case string:
-		sb.havings = fmt.Sprintf("%s %s '%s'", EscapeStr(s), EscapeStr(o), EscapeStr(v.(string)))
+		sb.havings = fmt.Sprintf("%s %s '%s'", EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql()))
 
 	default:
-		sb.havings = fmt.Sprintf("%s %s %v", EscapeStr(s), EscapeStr(o), v)
+		sb.havings = fmt.Sprintf("%s %s %v", EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v)
 	}
 
 	return sb
@@ -737,7 +752,7 @@ func (sb *SQLBuilder) Into(s string) *SQLBuilder {
 		sb.PanicOrErrorLog("must be support table")
 	}
 
-	sb.into = EscapeStr(s)
+	sb.into = EscapeStr(s, sb.IsMysql())
 
 	return sb
 }
@@ -751,7 +766,7 @@ func (sb *SQLBuilder) Fields(s ...string) *SQLBuilder {
 	}
 
 	for _, v := range s {
-		sb.fields = append(sb.fields, EscapeStr(v))
+		sb.fields = append(sb.fields, EscapeStr(v, sb.IsMysql()))
 	}
 
 	return sb
