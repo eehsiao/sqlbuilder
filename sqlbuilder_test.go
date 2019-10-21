@@ -15,9 +15,9 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 		{
 			name: "case 1 : UPDATE",
 			fn: func(sb *SQLBuilder) {
-				sb.Set([]Set{{"foo", 1}, {"bar", "\"2\""}, {"te\"st", true}}).From("user").Where("abc", "=", 1).WhereOr("def", "=", true).WhereAnd("ghi", "like", "%ghi%").BuildUpdateSQL()
+				sb.Set([]Set{{"foo", 1}, {"bar", "\"2\""}, {"te\"st", true}, {"testNil", nil}}).From("user").Where("abc", "=", 1).WhereOr("def", "=", true).WhereAnd("ghi", "like", "%ghi%").WhereAnd("jkl", "is", nil).WhereAnd("mno", "is not", nil).BuildUpdateSQL()
 			},
-			wantSql: "UPDATE user SET foo=1,bar='\\\"2\\\"',te\\\"st=true WHERE abc = 1 OR def = true AND ghi like '%ghi%'",
+			wantSql: "UPDATE user SET foo=1,bar='\\\"2\\\"',te\\\"st=true,testNil=NULL WHERE abc = 1 OR def = true AND ghi like '%ghi%' AND jkl is NULL AND mno is not NULL",
 		},
 		{
 			name: "case 2 : JOIN",
@@ -57,9 +57,9 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 		{
 			name: "case 6 : INSERT",
 			fn: func(sb *SQLBuilder) {
-				sb.Fields("Host", "User", "Select_priv").Values(1, "\"2", true).Into("user").BuildInsertSQL()
+				sb.Fields("Host", "User", "Select_priv", "testNil").Values(1, "\"2", true, nil).Into("user").BuildInsertSQL()
 			},
-			wantSql: `INSERT INTO user (Host,User,Select_priv) VALUES (1,'\"2',true)`,
+			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil) VALUES (1,'\"2',true,NULL)`,
 		},
 	}
 	for _, tt := range tests {

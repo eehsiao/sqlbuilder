@@ -362,7 +362,12 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 		case string:
 			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K, sb.IsMysql()), EscapeStr(set.V.(string), sb.IsMysql()))
 		default:
-			setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K, sb.IsMysql()), set.V)
+			if set.V == nil {
+				setStr += fmt.Sprintf("%s=NULL,", EscapeStr(set.K, sb.IsMysql()))
+			} else {
+				setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K, sb.IsMysql()), set.V)
+			}
+
 		}
 	}
 	sql += strings.Trim(setStr, ",")
@@ -395,7 +400,11 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 		case string:
 			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 		default:
-			vals += fmt.Sprintf("%v,", v)
+			if v == nil {
+				vals += "NULL,"
+			} else {
+				vals += fmt.Sprintf("%v,", v)
+			}
 		}
 	}
 	sql += strings.Trim(vals, ",") + ")"
@@ -427,7 +436,11 @@ func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
 		case string:
 			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 		default:
-			vals += fmt.Sprintf("%v,", v)
+			if v == nil {
+				vals += "NULL,"
+			} else {
+				vals += fmt.Sprintf("%v,", v)
+			}
 		}
 	}
 	sql += strings.Trim(vals, ",") + ")"
@@ -536,7 +549,7 @@ func (sb *SQLBuilder) Where(s string, o string, v interface{}) *SQLBuilder {
 }
 
 func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
-	if len(s) == 0 && s != "" && o != "" && v != nil && v.(string) != "" {
+	if len(s) == 0 && s != "" && o != "" {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 
@@ -547,16 +560,19 @@ func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 	switch v.(type) {
 	case string:
 		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
-
 	default:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
+		if v == nil {
+			sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s NULL", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql())))
+		} else {
+			sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
+		}
 	}
 
 	return sb
 }
 
 func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
-	if len(s) == 0 {
+	if len(s) == 0 && s != "" && o != "" {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 
@@ -567,9 +583,12 @@ func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
 	switch v.(type) {
 	case string:
 		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
-
 	default:
-		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
+		if v == nil {
+			sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s NULL", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql())))
+		} else {
+			sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %v", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
+		}
 	}
 
 	return sb
