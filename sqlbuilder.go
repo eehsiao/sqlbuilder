@@ -415,10 +415,10 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 
 func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
 	if !sb.IsSQLite() {
-		sb.PanicOrErrorLog("limit only support SQLite")
+		sb.PanicOrErrorLog("InsertOrReplace only support SQLite")
 	}
 	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert tableor default TbName")
+		sb.PanicOrErrorLog("Without insert table or default TbName")
 	}
 
 	sql := "INSERT OR REPLACE INTO "
@@ -473,7 +473,7 @@ func (sb *SQLBuilder) Distinct(b bool) *SQLBuilder {
 
 func (sb *SQLBuilder) Limit(i ...int) *SQLBuilder {
 	if !(sb.IsMysql() || sb.IsSQLite()) {
-		sb.PanicOrErrorLog("limit only support mysql")
+		sb.PanicOrErrorLog("limit only support mysql or sqlite")
 	}
 	if len(i) == 0 {
 		sb.PanicOrErrorLog("must have value for limit")
@@ -490,13 +490,13 @@ func (sb *SQLBuilder) Limit(i ...int) *SQLBuilder {
 
 func (sb *SQLBuilder) Top(i int) *SQLBuilder {
 	if !sb.IsMssql() {
-		sb.PanicOrErrorLog("limit only support mssql")
+		sb.PanicOrErrorLog("top only support mssql")
 	}
 	if i <= 0 {
 		sb.PanicOrErrorLog("must have >=1 value for top")
 	}
 
-	sb.limit = strconv.Itoa(i)
+	sb.top = strconv.Itoa(i)
 
 	return sb
 }
