@@ -580,13 +580,46 @@ func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 	return sb
 }
 
+// Where : just equal WhereAndStr
+func (sb *SQLBuilder) WhereStr(s string) *SQLBuilder {
+	return sb.WhereAndStr(s)
+}
+
+func (sb *SQLBuilder) WhereAndStr(s string) *SQLBuilder {
+	if s == "" {
+		sb.PanicOrErrorLog("must be support conditions")
+	}
+
+	if sb.IsHasWheres() {
+		sb.wheres = append(sb.wheres, fmt.Sprintf("AND %s", s))
+	} else {
+		sb.wheres = append(sb.wheres, s)
+	}
+
+	return sb
+}
+
+func (sb *SQLBuilder) WhereOrStr(s string) *SQLBuilder {
+	if s == "" {
+		sb.PanicOrErrorLog("must be support conditions")
+	}
+
+	if sb.IsHasWheres() {
+		sb.wheres = append(sb.wheres, fmt.Sprintf("OR %s", s))
+	} else {
+		sb.wheres = append(sb.wheres, s)
+	}
+
+	return sb
+}
+
 // Where : just equal WhereAnd
 func (sb *SQLBuilder) Where(s string, o string, v interface{}) *SQLBuilder {
 	return sb.WhereAnd(s, o, v)
 }
 
 func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
-	if len(s) == 0 && s != "" && o != "" {
+	if s == "" || o == "" {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 
@@ -609,7 +642,7 @@ func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 }
 
 func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
-	if len(s) == 0 && s != "" && o != "" {
+	if s == "" || o == "" {
 		sb.PanicOrErrorLog("must be support conditions")
 	}
 
@@ -649,7 +682,6 @@ func (sb *SQLBuilder) joinOn(p string, j string, s string, o string, v interface
 	switch v.(type) {
 	case string:
 		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
-
 	default:
 		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s %v", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
 	}
