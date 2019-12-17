@@ -61,6 +61,14 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 			},
 			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil) VALUES (1,'\"2',true,NULL)`,
 		},
+		{
+			name: "case 7 : Bulk INSERT",
+			fn: func(sb *SQLBuilder) {
+				sb.Fields("Host", "User", "Select_priv", "testNil").Values(1, "\"2", true, nil).Values(2, "\"22", true, nil)
+				sb.Values(3, "\"32", false, nil).Into("user").BuildBulkInsertSQL()
+			},
+			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil) VALUES (1,'\"2',true,NULL),(2,'\"22',true,NULL),(3,'\"32',false,NULL)`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -42,7 +42,7 @@ type SQLBuilder struct {
 	// for insert
 	into   string
 	fields []string
-	values []interface{}
+	values [][]interface{}
 
 	// for update
 	sets []Set
@@ -146,7 +146,7 @@ func (sb *SQLBuilder) ClearBuilder() {
 	sb.top = ""
 	sb.into = ""
 	sb.fields = make([]string, 0)
-	sb.values = make([]interface{}, 0)
+	sb.values = make([][]interface{}, 0)
 	sb.sets = make([]Set, 0)
 }
 
@@ -393,9 +393,8 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 	}
 
 	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
-
 	vals := "("
-	for _, v := range sb.values {
+	for _, v := range sb.values[0] {
 		switch v.(type) {
 		case string:
 			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
@@ -408,6 +407,44 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 		}
 	}
 	sql += strings.Trim(vals, ",") + ")"
+
+	sb.buildedStr = sql
+
+	return sb
+}
+
+func (sb *SQLBuilder) BuildBulkInsertSQL() *SQLBuilder {
+	if !sb.CanBuildInsert() {
+		sb.PanicOrErrorLog("Without insert tableor default TbName")
+	}
+
+	sql := "INSERT INTO "
+	if sb.IsHasInto() {
+		sql += sb.into
+	} else if sb.IsHasTbName() {
+		sql += sb.tbName
+	}
+
+	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
+	vals := ""
+	for _, vs := range sb.values {
+		vals += "("
+		for _, v := range vs {
+			switch v.(type) {
+			case string:
+				vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
+			default:
+				if v == nil {
+					vals += "NULL,"
+				} else {
+					vals += fmt.Sprintf("%v,", v)
+				}
+			}
+		}
+		vals = strings.Trim(vals, ",") + "),"
+	}
+	sql += strings.Trim(vals, ",")
+
 	sb.buildedStr = sql
 
 	return sb
@@ -431,7 +468,7 @@ func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
 	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
 
 	vals := "("
-	for _, v := range sb.values {
+	for _, v := range sb.values[0] {
 		switch v.(type) {
 		case string:
 			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
@@ -798,10 +835,11 @@ func (sb *SQLBuilder) Values(s ...interface{}) *SQLBuilder {
 
 	fieldCnt := sb.GetFieldsCount()
 	if len(s) == fieldCnt {
+		vs := make([]interface{}, 0)
 		for _, v := range s {
-			sb.values = append(sb.values, v)
+			vs = append(vs, v)
 		}
-
+		sb.values = append(sb.values, vs)
 	} else {
 		sb.PanicOrErrorLog("values count not equal fileds count")
 	}
