@@ -57,17 +57,17 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 		{
 			name: "case 6 : INSERT",
 			fn: func(sb *SQLBuilder) {
-				sb.Fields("Host", "User", "Select_priv", "testNil").Values(1, "\"2", true, nil).Into("user").BuildInsertSQL()
+				sb.Fields("Host", "User", "Select_priv", "testNil", "testDt").Values(1, "\"2", true, nil, NewSQLVar("current_timestamp")).Into("user").BuildInsertSQL()
 			},
-			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil) VALUES (1,'\"2',true,NULL)`,
+			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil,testDt) VALUES (1,'\"2',true,NULL,current_timestamp)`,
 		},
 		{
 			name: "case 7 : Bulk INSERT",
 			fn: func(sb *SQLBuilder) {
-				sb.Fields("Host", "User", "Select_priv", "testNil").Values(1, "\"2", true, nil).Values(2, "\"22", true, nil)
-				sb.Values(3, "\"32", false, nil).Into("user").BuildBulkInsertSQL()
+				sb.Fields("testDt", "Host", "User", "Select_priv", "testNil").Values(NewSQLVar("current_timestamp"), 1, "\"2", true, nil).Values(NewSQLVar("current_timestamp"), 2, "\"22", true, nil)
+				sb.Values(NewSQLVar("current_timestamp"), 3, "\"32", false, nil).Into("user").BuildBulkInsertSQL()
 			},
-			wantSql: `INSERT INTO user (Host,User,Select_priv,testNil) VALUES (1,'\"2',true,NULL),(2,'\"22',true,NULL),(3,'\"32',false,NULL)`,
+			wantSql: `INSERT INTO user (testDt,Host,User,Select_priv,testNil) VALUES (current_timestamp,1,'\"2',true,NULL),(current_timestamp,2,'\"22',true,NULL),(current_timestamp,3,'\"32',false,NULL)`,
 		},
 		{
 			name: "case 8 : Where",
