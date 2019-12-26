@@ -368,7 +368,7 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 	for _, set := range sb.sets {
 		switch set.V.(type) {
 		case SQLVar:
-			setStr += fmt.Sprintf("%s=%s,", EscapeStr(set.K, sb.IsMysql()), EscapeStr((set.V.(SQLVar)).VarS, sb.IsMysql()))
+			setStr += fmt.Sprintf("%s=%s,", EscapeStr(set.K, sb.IsMysql()), (set.V.(SQLVar)).VarS)
 		case string:
 			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K, sb.IsMysql()), EscapeStr(set.V.(string), sb.IsMysql()))
 		default:
@@ -406,7 +406,7 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 	for _, v := range sb.values[0] {
 		switch v.(type) {
 		case SQLVar:
-			vals += fmt.Sprintf("%v,", EscapeStr(v.(SQLVar).VarS, sb.IsMysql()))
+			vals += fmt.Sprintf("%s,", v.(SQLVar).VarS)
 		case string:
 			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 		default:
@@ -443,7 +443,7 @@ func (sb *SQLBuilder) BuildBulkInsertSQL() *SQLBuilder {
 		for _, v := range vs {
 			switch v.(type) {
 			case SQLVar:
-				vals += fmt.Sprintf("%v,", EscapeStr(v.(SQLVar).VarS, sb.IsMysql()))
+				vals += fmt.Sprintf("%s,", v.(SQLVar).VarS)
 			case string:
 				vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
 			default:
