@@ -391,7 +391,7 @@ func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
 
 func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert tableor default TbName")
+		sb.PanicOrErrorLog("Without insert table or default TbName")
 	}
 
 	sql := "INSERT INTO "
@@ -426,7 +426,7 @@ func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
 
 func (sb *SQLBuilder) BuildBulkInsertSQL() *SQLBuilder {
 	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert tableor default TbName")
+		sb.PanicOrErrorLog("Without insert table or default TbName")
 	}
 
 	sql := "INSERT INTO "
