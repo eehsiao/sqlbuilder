@@ -5,72 +5,99 @@ sqlbuilder its recursive struct call, that you can easy to build sql string
 
 [![GoDoc](https://godoc.org/github.com/eehsiao/sqlbuilder?status.svg)](https://godoc.org/github.com/eehsiao/sqlbuilder)
 
-ex: dao.Select().From().Join().Where().Limit()
-### SqlBuilder functions
-* build select :
-    * Select(f ...string)
-        * f is a fileds list of strings
-        * Select("filed1", "filed2", "filed3")
-        * Select(models.Struce4QuerySlice(DaoStructType)...)
-            * the library ref : [https://github.com/eehsiao/go-models](https://github.com/eehsiao/go-models)
-    * Distinct(b bool)
-        * its default in builder is set `false`
-    * Top(i int)
-        * only support mssql
-    * From(t ...string)
-        * t is table name
-    * Where(c string)
-        * c is condition, ex Where("field1=1 and filed2='b'")
-    * WhereAnd(c ...string)
-    * WhereOr(c ...string)
-    * Limit(i ...int)
-        * support 2 parms
-        * only support mysql
-    * Join(t string, c string)
-        * t is table name
-        * c is condition
-    * InnerJoin(t string, c string)
-    * LeftJoin(t string, c string)
-    * RightJoin(t string, c string)
-    * FullJoin(t string, c string)
-    * GroupBy(f ...string)
-        * f is a fileds list of strings
-    * OrderBy(f ...string)
-        * f is a fileds list of strings
-    * OrderByAsc(f ...string)
-    * OrderByDesc(f ...string)
-    * Having(s string)
-        * s is having condition string
-    * BuildSelectSQL()
-        * check and build sql string.
-        * you can get sql string via `BuildedSQL()`
-* build update :
-    * Set(s map[string]interface{})
-    * FromOne(t string)
-        * reset the table for only one
-    * BuildUpdateSQL()
-        * check and build sql string.
-        * you can get sql string via `BuildedSQL()`
-* build insert : 
-    * Into(t string)
-        * set the insert table
-    * Fields(f ...string)
-        * f is a fileds list of strings
-    * Values(v ...[]interface{})
-        * v is a values list of `interface{}`
-    * BuildInsertSQL()
-        * check and build sql string.
-        * you can get sql string via `BuildedSQL()`
-* build delete :
-    * BuildDeleteSQL()
-        * check and build sql string.
-        * you can get sql string via `BuildedSQL()`
-* common :
-    * ClearBuilder()
-        * reset builder
-    * BuildedSQL()
-        * return the builded sql string, if build success.
-    * SetDbName(s string)
-    * SetTbName(s string)
-    * SwitchPanicToErrorLog(b bool)
-    * PanicOrErrorLog(s string)
+simple sample : 
+```go
+    b := sb.NewSQLBuilder("SQLite")
+    b.Select("a", "b").
+        From("tblA").
+        Join("tblB").
+        Where("a", "=", 1).
+        Where("b", "=", "str").
+        Limit(100).
+        BuildSelectSQL()
+    fmt.Println(b.BuildedSQL())
+
+    b.Release()
+```
+
+more case can see [test case](https://github.com/eehsiao/sqlbuilder/blob/master/sqlbuilder_test.go)
+
+# go-model
+
+how to use sqlbuilder with [go-model](https://github.com/eehsiao/go-models) :
+```go
+package db
+
+import (
+	"database/sql"
+	"strconv"
+
+	model "github.com/eehsiao/go-models"
+	sb "github.com/eehsiao/sqlbuilder"
+)
+
+func (dao *Dao) GetExgs(params ...string) (e *[]*Exg, err error) {
+	var (
+		b    = sb.NewSQLBuilder("SQLite")
+		rows *sql.Rows
+	)
+	e = &[]*Exg{}
+	defer func() {
+		if rows != nil {
+			rows.Close()
+		}
+		b.Release()
+		rows = nil
+	}()
+
+	b.Select(model.Inst2Fields(Exg{})...).
+		From(TbExgs).
+		Where("is_active", "=", 1)
+	if len(params) > 0 && params[0] != "" {
+		b.Where("exg_code", "=", params[0])
+	}
+	if len(params) > 1 && params[1] != "" {
+		if i, err := strconv.Atoi(params[1]); err == nil && i > 0 {
+			b.Limit(i)
+		}
+	}
+	if rows, err = dao.Get(b); err == nil {
+		for rows.Next() {
+			exg := Exg{}
+			if err = rows.Scan(model.Struct4Scan(&exg)...); err == nil {
+				*e = append(*e, &exg)
+			} else {
+				return
+			}
+		}
+	}
+	return
+}
+
+func (dao *Dao) UpdateOrInsertExg(t *Exg) (r sql.Result, err error) {
+	var (
+		b          = sb.NewSQLBuilder("SQLite")
+		cnt        int64
+		withoutKey = []string{"id", "exg_code"}
+	)
+	defer func() {
+		b.Release()
+	}()
+
+	b.Set(model.Inst2Set(*t, withoutKey...)).
+		From(TbExgs).
+		Where("exg_code", "=", t.ExgCode).
+		BuildUpdateSQL()
+	if r, err = dao.ExecBuilder(b); err == nil {
+		if cnt, err = r.RowsAffected(); err == nil && cnt == 0 {
+			b.Fields(model.Inst2FieldWithoutID(*t)...).
+				Values(model.Inst2Values(*t, "id")...).
+				Into(TbExgs).
+				BuildInsertSQL()
+			r, err = dao.ExecBuilder(b)
+		}
+	}
+
+	return
+}
+```
