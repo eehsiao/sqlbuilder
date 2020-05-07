@@ -4,523 +4,45 @@ package sqlbuilder
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"strconv"
 	"strings"
 )
 
-type SQLVar struct {
-	VarS string
+// NewSQLVar gen you want string int builder
+func NewSQLVar(s string) SQLVar {
+	return Var(s)
 }
 
-func NewSQLVar(s string) SQLVar {
+// Var same as NewSQLVar
+func Var(s string) SQLVar {
 	return SQLVar{VarS: s}
 }
 
-var (
-	errLog     = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
-	isErrorLog = false
-)
-
-type Set struct {
-	K string
-	V interface{}
-}
-type SQLBuilder struct {
-	driverType string
-
-	// default database and table
-	dbName     string
-	tbName     string
-	buildedStr string
-
-	// for select , delete
-	distinct bool
-	selects  []string
-	froms    []string
-	joins    []string
-	wheres   []string
-	orders   []string
-	groups   []string
-	havings  string
-	limit    string
-	top      string
-
-	// for insert
-	into   string
-	fields []string
-	values [][]interface{}
-
-	// for update
-	sets []Set
+// On return a sub condition for join or having
+// same as OnAnd
+func On(s string, o string, v interface{}) SubCond {
+	return OnAnd(s, o, v)
 }
 
-func NewSQLBuilder(d ...string) (b *SQLBuilder) {
-	driverName := "mysql"
-	if len(d) > 0 && checkDriveType(d[0]) {
-		driverName = d[0]
-	}
-	b = &SQLBuilder{
-		driverType: driverName,
-	}
-	b.ClearBuilder()
-
-	return
+// OnAnd its will be `and` sub condition
+func OnAnd(s string, o string, v interface{}) SubCond {
+	return SubCond{c: true, s: s, o: o, v: v}
 }
 
-func checkDriveType(d string) (b bool) {
-	switch d {
-	case "mysql":
-		fallthrough
-	case "mssql":
-		fallthrough
-	case "oracle":
-		fallthrough
-	case "postgresql":
-		fallthrough
-	case "SQLite":
-		b = true
-	}
-
-	return
+// OnOr its will be `or` sub condition
+func OnOr(s string, o string, v interface{}) SubCond {
+	return SubCond{c: false, s: s, o: o, v: v}
 }
 
-func EscapeStr(value string, isMysql ...bool) string {
-	replace := []struct {
-		org string
-		rep string
-	}{
-		{`\\`, `\\\\`},
-		{`'`, `\'`},
-		{`"`, `\"`},
-		{`\\0`, "\\\\0"},
-		{`\n`, `\\n`},
-		{`\r`, `\\r`},
-		{`\x1a`, `\\Z`},
-	}
-
-	if len(isMysql) > 0 && !isMysql[0] {
-		replace = []struct {
-			org string
-			rep string
-		}{
-			{`\\`, `\\\\`},
-			{`'`, `''`},
-			{`"`, `""`},
-			{`\\0`, "\\\\0"},
-			{`\n`, `\\n`},
-			{`\r`, `\\r`},
-			{`\x1a`, `\\Z`},
-		}
-	}
-
-	for _, r := range replace {
-		value = strings.Replace(value, r.org, r.rep, -1)
-	}
-
-	return value
-}
-
-func (sb *SQLBuilder) SwitchPanicToErrorLog(b bool) {
-	isErrorLog = b
-}
-
-func (sb *SQLBuilder) PanicOrErrorLog(s string) {
-	if isErrorLog {
-		errLog.Println(s)
-	} else {
-		panic(s)
-	}
-}
-
-func (sb *SQLBuilder) SetDriverType(t string) {
-	if checkDriveType(t) {
-		sb.driverType = t
-	}
-}
-
-func (sb *SQLBuilder) ClearBuilder() {
-	sb.distinct = false
-	sb.buildedStr = ""
-	sb.selects = make([]string, 0)
-	sb.froms = make([]string, 0)
-	sb.joins = make([]string, 0)
-	sb.wheres = make([]string, 0)
-	sb.orders = make([]string, 0)
-	sb.groups = make([]string, 0)
-	sb.havings = ""
-	sb.limit = ""
-	sb.top = ""
-	sb.into = ""
-	sb.fields = make([]string, 0)
-	sb.values = make([][]interface{}, 0)
-	sb.sets = make([]Set, 0)
-}
-
-func (sb *SQLBuilder) SetDbName(s string) {
-	if s == "" {
-		return
-	}
-
-	sb.dbName = s
-}
-
-func (sb *SQLBuilder) SetTbName(s string) {
-	if s == "" {
-		return
-	}
-
-	sb.tbName = s
-}
-
-func (sb *SQLBuilder) GetDbName() string {
-	return sb.dbName
-}
-
-func (sb *SQLBuilder) GetTbName() string {
-	return sb.tbName
-}
-
-func (sb *SQLBuilder) IsMysql() bool {
-	return sb.driverType == "mysql"
-}
-
-func (sb *SQLBuilder) IsMssql() bool {
-	return sb.driverType == "mssql"
-}
-
-func (sb *SQLBuilder) IsOracle() bool {
-	return sb.driverType == "oracle"
-}
-
-func (sb *SQLBuilder) IsPostgresql() bool {
-	return sb.driverType == "postgresql"
-}
-
-func (sb *SQLBuilder) IsSQLite() bool {
-	return sb.driverType == "SQLite"
-}
-
-func (sb *SQLBuilder) IsDistinct() bool {
-	return sb.distinct
-}
-
-func (sb *SQLBuilder) IsHasSelects() bool {
-	return len(sb.selects) > 0
-}
-
-func (sb *SQLBuilder) IsHasDbName() bool {
-	return sb.dbName != ""
-}
-
-func (sb *SQLBuilder) IsHasTbName() bool {
-	return sb.tbName != ""
-}
-
-func (sb *SQLBuilder) IsHasOneFroms() bool {
-	return len(sb.froms) == 1
-}
-
-func (sb *SQLBuilder) IsHasFroms() bool {
-	return len(sb.froms) > 0
-}
-
-func (sb *SQLBuilder) IsHasJoins() bool {
-	return len(sb.joins) > 0
-}
-
-func (sb *SQLBuilder) IsHasWheres() bool {
-	return len(sb.wheres) > 0
-}
-
-func (sb *SQLBuilder) IsHasOrders() bool {
-	return len(sb.orders) > 0
-}
-
-func (sb *SQLBuilder) IsHasGroups() bool {
-	return len(sb.groups) > 0
-}
-
-func (sb *SQLBuilder) IsHasHavings() bool {
-	return sb.havings != ""
-}
-
-func (sb *SQLBuilder) IsHasLimit() bool {
-	return (sb.IsMysql() || sb.IsSQLite()) && sb.limit != ""
-}
-
-func (sb *SQLBuilder) IsHasTop() bool {
-	return sb.IsMssql() && sb.top != ""
-}
-
-func (sb *SQLBuilder) IsHasInto() bool {
-	return sb.into != ""
-}
-
-func (sb *SQLBuilder) IsHasFields() bool {
-	return len(sb.fields) > 0
-}
-
-func (sb *SQLBuilder) IsHasValues() bool {
-	return len(sb.values) > 0
-}
-
-func (sb *SQLBuilder) IsHasSets() bool {
-	return len(sb.sets) > 0
-}
-
-func (sb *SQLBuilder) IsHadBuildedSQL() bool {
-	return sb.buildedStr != ""
-}
-
-func (sb *SQLBuilder) GetFieldsCount() int {
-	return len(sb.fields)
-}
-
-func (sb *SQLBuilder) BuildedSQL() (sql string) {
-	return sb.buildedStr
-}
-
-func (sb *SQLBuilder) BuildDeleteSQL() *SQLBuilder {
-	if !sb.CanBuildDelete() {
-		sb.PanicOrErrorLog("must be have only one from table or default TbName")
-	}
-	sql := ""
-	if sb.IsHasOneFroms() {
-		sql = "DELETE FROM " + sb.froms[0]
-	} else if sb.IsHasTbName() {
-		sql = "DELETE FROM " + sb.tbName
-	}
-
-	if sb.IsHasWheres() {
-		sql += " WHERE " + strings.Join(sb.wheres, " ")
-	}
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) BuildSelectSQL() *SQLBuilder {
-	if !sb.CanBuildSelect() {
-		sb.PanicOrErrorLog("Without selects or from table is not set")
-	}
-
-	sql := "SELECT"
-
-	if sb.IsDistinct() {
-		sql += " DISTINCT"
-	}
-
-	if sb.IsHasTop() {
-		sql += " TOP " + sb.top
-	}
-
-	sql += " " + strings.Join(sb.selects, ",")
-	if sb.IsHasFroms() {
-		sql += " FROM " + strings.Join(sb.froms, ",")
-	} else if sb.IsHasTbName() {
-		sql += " FROM " + sb.tbName
-	}
-
-	if sb.IsHasJoins() {
-		sql += " " + strings.Join(sb.joins, " ")
-	}
-
-	if sb.IsHasWheres() {
-		sql += " WHERE " + strings.Join(sb.wheres, " ")
-	}
-
-	if sb.IsHasOrders() {
-		sql += " ORDER BY " + strings.Join(sb.orders, ",")
-	}
-
-	if sb.IsHasGroups() {
-		sql += " GROUP BY " + strings.Join(sb.groups, ",")
-	}
-
-	if sb.IsHasHavings() {
-		sql += " HAVING " + sb.havings
-	}
-
-	if sb.IsHasLimit() {
-		sql += " LIMIT " + sb.limit
-	}
-
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) BuildUpdateSQL() *SQLBuilder {
-	if !sb.CanBuildUpdate() {
-		sb.PanicOrErrorLog("Without update table or default TbName")
-	}
-
-	sql := "UPDATE "
-	if sb.IsHasOneFroms() {
-		sql += sb.froms[0] + " "
-	} else if sb.IsHasTbName() {
-		sql += sb.tbName + " "
-	}
-
-	setStr := "SET "
-	for _, set := range sb.sets {
-		switch set.V.(type) {
-		case SQLVar:
-			setStr += fmt.Sprintf("%s=%s,", EscapeStr(set.K, sb.IsMysql()), (set.V.(SQLVar)).VarS)
-		case string:
-			setStr += fmt.Sprintf("%s='%v',", EscapeStr(set.K, sb.IsMysql()), EscapeStr(set.V.(string), sb.IsMysql()))
-		default:
-			if set.V == nil {
-				setStr += fmt.Sprintf("%s=NULL,", EscapeStr(set.K, sb.IsMysql()))
-			} else {
-				setStr += fmt.Sprintf("%s=%v,", EscapeStr(set.K, sb.IsMysql()), set.V)
-			}
-		}
-	}
-	sql += strings.Trim(setStr, ",")
-
-	if sb.IsHasWheres() {
-		sql += " WHERE " + strings.Join(sb.wheres, " ")
-	}
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) BuildInsertSQL() *SQLBuilder {
-	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert table or default TbName")
-	}
-
-	sql := "INSERT INTO "
-	if sb.IsHasInto() {
-		sql += sb.into
-	} else if sb.IsHasTbName() {
-		sql += sb.tbName
-	}
-
-	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
-	vals := "("
-	for _, v := range sb.values[0] {
-		switch v.(type) {
-		case SQLVar:
-			vals += fmt.Sprintf("%s,", v.(SQLVar).VarS)
-		case string:
-			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
-		default:
-			if v == nil {
-				vals += "NULL,"
-			} else {
-				vals += fmt.Sprintf("%v,", v)
-			}
-		}
-	}
-	sql += strings.Trim(vals, ",") + ")"
-
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) BuildBulkInsertSQL() *SQLBuilder {
-	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert table or default TbName")
-	}
-
-	sql := "INSERT INTO "
-	if sb.IsHasInto() {
-		sql += sb.into
-	} else if sb.IsHasTbName() {
-		sql += sb.tbName
-	}
-
-	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
-	vals := ""
-	for _, vs := range sb.values {
-		vals += "("
-		for _, v := range vs {
-			switch v.(type) {
-			case SQLVar:
-				vals += fmt.Sprintf("%s,", v.(SQLVar).VarS)
-			case string:
-				vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
-			default:
-				if v == nil {
-					vals += "NULL,"
-				} else {
-					vals += fmt.Sprintf("%v,", v)
-				}
-			}
-		}
-		vals = strings.Trim(vals, ",") + "),"
-	}
-	sql += strings.Trim(vals, ",")
-
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) BuildInsertOrReplaceSQL() *SQLBuilder {
-	if !sb.IsSQLite() {
-		sb.PanicOrErrorLog("InsertOrReplace only support SQLite")
-	}
-	if !sb.CanBuildInsert() {
-		sb.PanicOrErrorLog("Without insert table or default TbName")
-	}
-
-	sql := "INSERT OR REPLACE INTO "
-	if sb.IsHasInto() {
-		sql += sb.into
-	} else if sb.IsHasTbName() {
-		sql += sb.tbName
-	}
-
-	sql += " (" + strings.Join(sb.fields, ",") + ") VALUES "
-
-	vals := "("
-	for _, v := range sb.values[0] {
-		switch v.(type) {
-		case string:
-			vals += fmt.Sprintf("'%v',", EscapeStr(v.(string), sb.IsMysql()))
-		default:
-			if v == nil {
-				vals += "NULL,"
-			} else {
-				vals += fmt.Sprintf("%v,", v)
-			}
-		}
-	}
-	sql += strings.Trim(vals, ",") + ")"
-	sb.buildedStr = sql
-
-	return sb
-}
-
-func (sb *SQLBuilder) CanBuildSelect() bool {
-	return sb.IsHasSelects() && (sb.IsHasFroms() || sb.IsHasTbName())
-}
-
-func (sb *SQLBuilder) CanBuildDelete() bool {
-	return sb.IsHasFroms() || sb.IsHasTbName()
-}
-
-func (sb *SQLBuilder) CanBuildUpdate() bool {
-	return (sb.IsHasOneFroms() || sb.IsHasTbName()) && sb.IsHasSets()
-}
-
-func (sb *SQLBuilder) CanBuildInsert() bool {
-	return (sb.IsHasInto() || sb.IsHasTbName()) && sb.IsHasFields() && sb.IsHasValues()
-}
-
+// Distinct set builder for `distinct`
 func (sb *SQLBuilder) Distinct(b bool) *SQLBuilder {
 	sb.distinct = b
 
 	return sb
 }
 
+// Limit set builder for `limit`
+// only for Mysql, SQLite
 func (sb *SQLBuilder) Limit(i ...int) *SQLBuilder {
 	if !(sb.IsMysql() || sb.IsSQLite()) {
 		sb.PanicOrErrorLog("limit only support mysql or sqlite")
@@ -538,6 +60,8 @@ func (sb *SQLBuilder) Limit(i ...int) *SQLBuilder {
 	return sb
 }
 
+// Top set builder for `top`
+// only for Mssql
 func (sb *SQLBuilder) Top(i int) *SQLBuilder {
 	if !sb.IsMssql() {
 		sb.PanicOrErrorLog("top only support mssql")
@@ -551,6 +75,12 @@ func (sb *SQLBuilder) Top(i int) *SQLBuilder {
 	return sb
 }
 
+// Select set builder for `select`
+// params must lest one or more
+// ex :
+// ```
+// Select('fieldA', 'fieldB', 'fieldC')
+// ```
 func (sb *SQLBuilder) Select(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support fileds")
@@ -563,6 +93,12 @@ func (sb *SQLBuilder) Select(s ...string) *SQLBuilder {
 	return sb
 }
 
+// From set builder for `from`
+// params must lest one or more
+// ex :
+// ```
+// From('tblA', 'tblB', 'tblC')
+// ```
 func (sb *SQLBuilder) From(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support tables")
@@ -579,6 +115,12 @@ func (sb *SQLBuilder) clearFrom() {
 	sb.froms = make([]string, 0)
 }
 
+// FromOne set builder for `from`
+// just one param for one table
+// ex :
+// ```
+// FromOne('tblA')
+// ```
 func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 	if s == "" {
 		sb.PanicOrErrorLog("must be support tables")
@@ -593,11 +135,18 @@ func (sb *SQLBuilder) FromOne(s string) *SQLBuilder {
 	return sb
 }
 
-// Where : just equal WhereAndStr
+// WhereStr is equal WhereAndStr
+// just one param for add a where string
+// if this not first time use, its will be `and` condition
+// ex :
+// ```
+// WhereStr('fieldA = 0')
+// ```
 func (sb *SQLBuilder) WhereStr(s string) *SQLBuilder {
 	return sb.WhereAndStr(s)
 }
 
+// WhereAndStr same as WhereStr
 func (sb *SQLBuilder) WhereAndStr(s string) *SQLBuilder {
 	if s == "" {
 		sb.PanicOrErrorLog("must be support conditions")
@@ -612,6 +161,13 @@ func (sb *SQLBuilder) WhereAndStr(s string) *SQLBuilder {
 	return sb
 }
 
+// WhereOrStr just one param for add a where string
+// if this not first time use, its will be `or` condition
+// it its first time use, just same as WhereStr
+// ex :
+// ```
+// WhereOrStr('fieldA = 0')
+// ```
 func (sb *SQLBuilder) WhereOrStr(s string) *SQLBuilder {
 	if s == "" {
 		sb.PanicOrErrorLog("must be support conditions")
@@ -626,11 +182,21 @@ func (sb *SQLBuilder) WhereOrStr(s string) *SQLBuilder {
 	return sb
 }
 
-// Where : just equal WhereAnd
+// Where is equal WhereAnd
+// if this not first time use, its will be `and` condition
+// 3 params :
+// s is mean filed
+// o is a operator, ex : `=`, `>`, ...
+// v is a value , it type interface{}
+// ex :
+// ```
+// Where('fieldA', '=', 0)
+// ```
 func (sb *SQLBuilder) Where(s string, o string, v interface{}) *SQLBuilder {
 	return sb.WhereAnd(s, o, v)
 }
 
+// WhereAnd same as Where
 func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 	if s == "" || o == "" {
 		sb.PanicOrErrorLog("must be support conditions")
@@ -641,6 +207,8 @@ func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 		c = "AND "
 	}
 	switch v.(type) {
+	case SQLVar:
+		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s %s", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(SQLVar).VarS, sb.IsMysql())))
 	case string:
 		sb.wheres = append(sb.wheres, fmt.Sprintf("%s%s %s '%s'", c, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
 	default:
@@ -654,6 +222,15 @@ func (sb *SQLBuilder) WhereAnd(s string, o string, v interface{}) *SQLBuilder {
 	return sb
 }
 
+// WhereOr if this not first time use, its will be `or` condition
+// 3 params :
+// s is mean filed
+// o is a operator, ex : `=`, `>`, ...
+// v is a value , it type interface{}
+// ex :
+// ```
+// WhereOr('fieldA', '=', 0)
+// ```
 func (sb *SQLBuilder) WhereOr(s string, o string, v interface{}) *SQLBuilder {
 	if s == "" || o == "" {
 		sb.PanicOrErrorLog("must be support conditions")
@@ -687,21 +264,48 @@ func (sb *SQLBuilder) join(p string, j string) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) joinOn(p string, j string, s string, o string, v interface{}) *SQLBuilder {
-	if j == "" {
-		sb.PanicOrErrorLog("must be support join table")
+func (sb *SQLBuilder) joinOn(p string, t string, j ...SubCond) *SQLBuilder {
+	if t == "" || len(j) == 0 {
+		sb.PanicOrErrorLog("must be support join table or without condition")
+	}
+	jStr, c := "", ""
+
+	for _, con := range j {
+		if jStr == "" {
+			switch con.v.(type) {
+			case SQLVar:
+				jStr = fmt.Sprintf("%sJOIN %s ON %s %s %s", p, t, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(SQLVar).VarS, sb.IsMysql()))
+			case string:
+				jStr = fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, t, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(string), sb.IsMysql()))
+			default:
+				jStr = fmt.Sprintf("%sJOIN %s ON %s %s %v", p, t, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), con.v)
+			}
+		} else {
+			if con.c {
+				c = " AND"
+			} else {
+				c = " OR"
+			}
+			switch con.v.(type) {
+			case SQLVar:
+				jStr += fmt.Sprintf("%s %s %s %s", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(SQLVar).VarS, sb.IsMysql()))
+			case string:
+				jStr += fmt.Sprintf("%s %s %s '%s'", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(string), sb.IsMysql()))
+			default:
+				jStr += fmt.Sprintf("%s %s %s %v", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), con.v)
+			}
+		}
+
 	}
 
-	switch v.(type) {
-	case string:
-		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s '%s'", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql())))
-	default:
-		sb.joins = append(sb.joins, fmt.Sprintf("%sJOIN %s ON %s %s %v", p, j, EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v))
+	if jStr != "" {
+		sb.joins = append(sb.joins, jStr)
 	}
 
 	return sb
 }
 
+// Join is a natural join
 func (sb *SQLBuilder) Join(j string) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
@@ -710,14 +314,25 @@ func (sb *SQLBuilder) Join(j string) *SQLBuilder {
 	return sb.join("", j)
 }
 
+// JoinOn the join with one condition
 func (sb *SQLBuilder) JoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	return sb.joinOn("", j, s, o, v)
+	return sb.joinOn("", j, On(s, o, v))
 }
 
+// JoinOns the join with multi condition
+func (sb *SQLBuilder) JoinOns(j string, on ...SubCond) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("", j, on...)
+}
+
+// InnerJoin the join with natural fileds
 func (sb *SQLBuilder) InnerJoin(j string) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
@@ -726,14 +341,25 @@ func (sb *SQLBuilder) InnerJoin(j string) *SQLBuilder {
 	return sb.join("INNER ", j)
 }
 
+// InnerJoinOn the join with one condition
 func (sb *SQLBuilder) InnerJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	return sb.joinOn("INNER ", j, s, o, v)
+	return sb.joinOn("INNER ", j, On(s, o, v))
 }
 
+// InnerJoinOns the join with multi condition
+func (sb *SQLBuilder) InnerJoinOns(j string, on ...SubCond) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("INNER ", j, on...)
+}
+
+// LeftJoin the join with natural fileds
 func (sb *SQLBuilder) LeftJoin(j string) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
@@ -742,14 +368,25 @@ func (sb *SQLBuilder) LeftJoin(j string) *SQLBuilder {
 	return sb.join("LEFT ", j)
 }
 
+// LeftJoinOn the join with one condition
 func (sb *SQLBuilder) LeftJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	return sb.joinOn("LEFT ", j, s, o, v)
+	return sb.joinOn("LEFT ", j, On(s, o, v))
 }
 
+// LeftJoinOns the join with multi condition
+func (sb *SQLBuilder) LeftJoinOns(j string, on ...SubCond) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("LEFT ", j, on...)
+}
+
+// RightJoin the join with natural fileds
 func (sb *SQLBuilder) RightJoin(j string) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
@@ -758,14 +395,25 @@ func (sb *SQLBuilder) RightJoin(j string) *SQLBuilder {
 	return sb.join("RIGHT ", j)
 }
 
+// RightJoinOn the join with one condition
 func (sb *SQLBuilder) RightJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	return sb.joinOn("RIGHT ", j, s, o, v)
+	return sb.joinOn("RIGHT ", j, On(s, o, v))
 }
 
+// RightJoinOns the join with multi condition
+func (sb *SQLBuilder) RightJoinOns(j string, on ...SubCond) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("RIGHT ", j, on...)
+}
+
+// FullJoin the join with natural fileds
 func (sb *SQLBuilder) FullJoin(j string) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
@@ -774,14 +422,26 @@ func (sb *SQLBuilder) FullJoin(j string) *SQLBuilder {
 	return sb.join("FULL ", j)
 }
 
+// FullJoinOn the join with one condition
 func (sb *SQLBuilder) FullJoinOn(j string, s string, o string, v interface{}) *SQLBuilder {
 	if j == "" {
 		sb.PanicOrErrorLog("must be support join table")
 	}
 
-	return sb.joinOn("FULL ", j, s, o, v)
+	return sb.joinOn("FULL ", j, On(s, o, v))
 }
 
+// FullJoinOns the join with multi condition
+func (sb *SQLBuilder) FullJoinOns(j string, on ...SubCond) *SQLBuilder {
+	if j == "" {
+		sb.PanicOrErrorLog("must be support join table")
+	}
+
+	return sb.joinOn("FULL ", j, on...)
+}
+
+// GroupBy with fileds
+// fileds must be same as select fileds
 func (sb *SQLBuilder) GroupBy(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support group fileds")
@@ -794,10 +454,13 @@ func (sb *SQLBuilder) GroupBy(s ...string) *SQLBuilder {
 	return sb
 }
 
+// OrderBy with fileds
+// default Asc
 func (sb *SQLBuilder) OrderBy(s ...string) *SQLBuilder {
 	return sb.OrderByAsc(s...)
 }
 
+// OrderByAsc with fileds
 func (sb *SQLBuilder) OrderByAsc(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support order fileds")
@@ -808,6 +471,7 @@ func (sb *SQLBuilder) OrderByAsc(s ...string) *SQLBuilder {
 	return sb
 }
 
+// OrderByDesc with fileds
 func (sb *SQLBuilder) OrderByDesc(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support order fileds")
@@ -818,24 +482,70 @@ func (sb *SQLBuilder) OrderByDesc(s ...string) *SQLBuilder {
 	return sb
 }
 
-func (sb *SQLBuilder) Having(s string, o string, v interface{}) *SQLBuilder {
-	if s == "" || !sb.IsHasGroups() {
-		sb.PanicOrErrorLog("must be support having condition or set group by first")
+func (sb *SQLBuilder) having(h ...SubCond) *SQLBuilder {
+	if len(h) == 0 {
+		sb.PanicOrErrorLog("without condition")
+	}
+	if !sb.IsHasGroups() {
+		sb.PanicOrErrorLog("must be set group by first")
 	}
 
-	sb.havings = EscapeStr(s, sb.IsMysql())
+	c := ""
 
-	switch v.(type) {
-	case string:
-		sb.havings = fmt.Sprintf("%s %s '%s'", EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), EscapeStr(v.(string), sb.IsMysql()))
+	for _, con := range h {
+		if sb.havings == "" {
+			switch con.v.(type) {
+			case SQLVar:
+				sb.havings = fmt.Sprintf("%s %s %s", EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(SQLVar).VarS, sb.IsMysql()))
+			case string:
+				sb.havings = fmt.Sprintf("%s %s '%s'", EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(string), sb.IsMysql()))
+			default:
+				sb.havings = fmt.Sprintf("%s %s %v", EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), con.v)
+			}
+		} else {
+			if con.c {
+				c = " AND"
+			} else {
+				c = " OR"
+			}
+			switch con.v.(type) {
+			case SQLVar:
+				sb.havings += fmt.Sprintf("%s %s %s %s", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(SQLVar).VarS, sb.IsMysql()))
+			case string:
+				sb.havings += fmt.Sprintf("%s %s %s '%s'", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), EscapeStr(con.v.(string), sb.IsMysql()))
+			default:
+				sb.havings += fmt.Sprintf("%s %s %s %v", c, EscapeStr(con.s, sb.IsMysql()), EscapeStr(con.o, sb.IsMysql()), con.v)
+			}
+		}
 
-	default:
-		sb.havings = fmt.Sprintf("%s %s %v", EscapeStr(s, sb.IsMysql()), EscapeStr(o, sb.IsMysql()), v)
 	}
 
 	return sb
 }
 
+// Having with one condition
+// its will overwrite having section
+func (sb *SQLBuilder) Having(s string, o string, v interface{}) *SQLBuilder {
+	if s == "" || !sb.IsHasGroups() {
+		sb.PanicOrErrorLog("must be support having condition or set group by first")
+	}
+
+	return sb.having(On(s, o, v))
+}
+
+// Havings with multi conditions
+func (sb *SQLBuilder) Havings(h ...SubCond) *SQLBuilder {
+	if len(h) == 0 {
+		sb.PanicOrErrorLog("without condition")
+	}
+	if !sb.IsHasGroups() {
+		sb.PanicOrErrorLog("must be set group by first")
+	}
+
+	return sb.having(h...)
+}
+
+// Set with Set{K string, V interface{}} structs
 func (sb *SQLBuilder) Set(s []Set) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support set fileds : values")
@@ -848,6 +558,7 @@ func (sb *SQLBuilder) Set(s []Set) *SQLBuilder {
 	return sb
 }
 
+// Into for set insert table
 func (sb *SQLBuilder) Into(s string) *SQLBuilder {
 	if s == "" {
 		sb.PanicOrErrorLog("must be support table")
@@ -858,6 +569,7 @@ func (sb *SQLBuilder) Into(s string) *SQLBuilder {
 	return sb
 }
 
+// Fields for set update fields
 func (sb *SQLBuilder) Fields(s ...string) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support fileds")
@@ -873,6 +585,7 @@ func (sb *SQLBuilder) Fields(s ...string) *SQLBuilder {
 	return sb
 }
 
+// Values for set update values
 func (sb *SQLBuilder) Values(s ...interface{}) *SQLBuilder {
 	if len(s) == 0 {
 		sb.PanicOrErrorLog("must be support fileds")
@@ -890,8 +603,4 @@ func (sb *SQLBuilder) Values(s ...interface{}) *SQLBuilder {
 	}
 
 	return sb
-}
-
-func (sb *SQLBuilder) Release() {
-	sb = nil
 }

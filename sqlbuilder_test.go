@@ -74,9 +74,10 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 					OrderByDesc("Select_priv").
 					GroupBy("Host", "User", "Select_priv").
 					Having("count(Host)", ">", 1).
+					Havings(On("count(User)", ">", 2)).
 					BuildSelectSQL()
 			},
-			wantSQL: `SELECT Host,User,Select_priv FROM user ORDER BY Host ASC,User ASC,Select_priv DESC GROUP BY Host,User,Select_priv HAVING count(Host) > 1`,
+			wantSQL: `SELECT Host,User,Select_priv FROM user ORDER BY Host ASC,User ASC,Select_priv DESC GROUP BY Host,User,Select_priv HAVING count(Host) > 1 AND count(User) > 2`,
 		},
 		{
 			name: "case 5 : DELETE",
