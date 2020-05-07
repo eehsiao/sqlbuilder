@@ -5,7 +5,7 @@ sqlbuilder its recursive struct call, that you can easy to build sql string
 
 [![GoDoc](https://godoc.org/github.com/eehsiao/sqlbuilder?status.svg)](https://godoc.org/github.com/eehsiao/sqlbuilder)
 
-simple sample : 
+simple example : 
 ```go
     b := sb.NewSQLBuilder("SQLite")
     b.Select("a", "b").
