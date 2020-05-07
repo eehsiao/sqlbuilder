@@ -55,14 +55,14 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 			fn: func(sb *SQLBuilder) {
 				sb.Select("Host", "User", "Select_priv").
 					From("user").
-					RightJoin("company").
-					RightJoinOn("priv", "abc", "=", 1).
-					FullJoin("company").
-					FullJoinOn("priv", "abc", "=", 1).
+					RightJoin("company a").
+					RightJoinOn("priv b", "a.abc", "=", Var("b.abc")).
+					FullJoin("comp c").
+					FullJoinOn("pri d", "c.def", "=", Var("d.def")).
 					Limit(1).
 					BuildSelectSQL()
 			},
-			wantSQL: `SELECT Host,User,Select_priv FROM user RIGHT JOIN company RIGHT JOIN priv ON abc = 1 FULL JOIN company FULL JOIN priv ON abc = 1 LIMIT 1`,
+			wantSQL: `SELECT Host,User,Select_priv FROM user RIGHT JOIN company a RIGHT JOIN priv b ON a.abc = b.abc FULL JOIN comp c FULL JOIN pri d ON c.def = d.def LIMIT 1`,
 		},
 		{
 			name: "case 4 : GroupBy OrderBy Having",
@@ -91,7 +91,7 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 			fn: func(sb *SQLBuilder) {
 				sb.Fields("Host", "User", "Select_priv", "testNil", "testDt").
 					Values(1, "\"2", true, nil,
-						NewSQLVar("current_timestamp")).
+						Var("current_timestamp")).
 					Into("user").
 					BuildInsertSQL()
 			},
@@ -101,9 +101,9 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 			name: "case 7 : Bulk INSERT",
 			fn: func(sb *SQLBuilder) {
 				sb.Fields("testDt", "Host", "User", "Select_priv", "testNil").
-					Values(NewSQLVar("current_timestamp"), 1, "\"2", true, nil).
-					Values(NewSQLVar("datetime('now','localtime')"), 2, "\"22", true, nil).
-					Values(NewSQLVar("current_timestamp"), 3, "\"32", false, nil).
+					Values(Var("current_timestamp"), 1, "\"2", true, nil).
+					Values(Var("datetime('now','localtime')"), 2, "\"22", true, nil).
+					Values(Var("current_timestamp"), 3, "\"32", false, nil).
 					Into("user").
 					BuildBulkInsertSQL()
 			},
@@ -120,6 +120,21 @@ func TestSQLBuilder_BuildedSQL(t *testing.T) {
 					BuildSelectSQL()
 			},
 			wantSQL: `SELECT Host,User,Select_priv FROM user WHERE company = 'a' AND company!='b' OR user!='b'`,
+		},
+		{
+			name: "case 9 : JOIN On multi condition",
+			fn: func(sb *SQLBuilder) {
+				sb.Select("Host", "User", "Select_priv").
+					From("user a").
+					Join("company b").
+					JoinOns("priv c",
+						On("b.abc", "=", 1),
+						OnAnd("b.def", "=", Var("c.def")),
+					).
+					Limit(1).
+					BuildSelectSQL()
+			},
+			wantSQL: `SELECT Host,User,Select_priv FROM user a JOIN company b JOIN priv c ON b.abc = 1 AND b.def = c.def LIMIT 1`,
 		},
 	}
 	for _, tt := range tests {
